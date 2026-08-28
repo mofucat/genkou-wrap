@@ -13,6 +13,8 @@
 ;; - genkou-wrap-mode 内で
 ;;     C-c C-c : バッファの内容から原稿用紙PDFを生成
 ;;     C-c C-v : 生成したPDFを Skim.app（macOS）でプレビュー
+;;     C-c C-f : バッファ全体を20字ごとに改行（禁則処理つき）
+;;     C-c C-r : C-c C-f による改行を取り除いて元に戻す
 ;; - 初回の C-c C-c 実行時に、専用の Python 仮想環境を自動作成し、
 ;;   reportlab をインストールする（straight のインストール処理自体には
 ;;   一切手を加えない。仮想環境の作成は "初回利用時" に遅延実行される）。
@@ -33,6 +35,8 @@
 ;;   M-x genkou-wrap-mode  でマイナーモードを有効化した上で
 ;;   C-c C-c  … PDF生成
 ;;   C-c C-v  … Skimでプレビュー
+;;   C-c C-f  … 20字ごとに改行
+;;   C-c C-r  … 改行を元に戻す
 
 ;;; Code:
 
@@ -133,6 +137,28 @@ COLS 文字幅の行のリストに分割して返す。"
   (interactive)
   (genkou-wrap-region (point-min) (point-max)))
 
+;;;###autoload
+(defun genkou-unwrap-region (start end)
+  "リージョン内の genkou-wrap-region による改行を取り除き、
+段落区切り（空行）だけを残した状態に戻す。"
+  (interactive "r")
+  (let* ((text (buffer-substring-no-properties start end))
+         (paragraphs (split-string text "\n\n+" nil))
+         (unwrapped (mapconcat
+                     (lambda (para)
+                       (replace-regexp-in-string "\n" "" para))
+                     paragraphs
+                     "\n\n")))
+    (delete-region start end)
+    (goto-char start)
+    (insert unwrapped)))
+
+;;;###autoload
+(defun genkou-unwrap-buffer ()
+  "バッファ全体を対象に genkou-unwrap-region を実行する。"
+  (interactive)
+  (genkou-unwrap-region (point-min) (point-max)))
+
 ;; --- PDF生成・プレビュー ---
 
 (defvar genkou-wrap--this-file
@@ -227,6 +253,8 @@ COLS 文字幅の行のリストに分割して返す。"
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") #'genkou-wrap-compile)
     (define-key map (kbd "C-c C-v") #'genkou-wrap-preview)
+    (define-key map (kbd "C-c C-f") #'genkou-wrap-buffer)
+    (define-key map (kbd "C-c C-r") #'genkou-unwrap-buffer)
     map)
   "genkou-wrap-mode 用のキーマップ。")
 

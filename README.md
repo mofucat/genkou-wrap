@@ -8,7 +8,7 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
 - **改行を段落区切りとして認識**（行末まで空白で埋めて次の行へ）
 - **日本語の禁則処理に対応**（句読点や閉じ括弧が行頭に来ない、開き括弧が行末に来ない）
 - **フォント埋め込み済み**（IPAゴシック同梱。環境を選ばず文字化けしません）
-- **Emacs (straight.el + leaf) 連携**：`C-c C-c` でPDF生成、`C-c C-v` でSkimプレビュー
+- **Emacs (straight.el + leaf) 連携**：`C-c C-c` でPDF生成、`C-c C-v` でSkimプレビュー、`C-c C-f` / `C-c C-r` でバッファ上の20字折り返しのオン・オフ
 
 ## 同梱ファイル
 
@@ -35,7 +35,8 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
              :repo "yourname/genkou-wrap"
              :files ("genkou-wrap.el" "genkou.py" "ipag.ttf"
                      "requirements.txt" "IPA_Font_License.txt"))
-  :commands (genkou-wrap-mode genkou-wrap-buffer genkou-wrap-region)
+  :commands (genkou-wrap-mode genkou-wrap-buffer genkou-wrap-region
+             genkou-unwrap-buffer genkou-unwrap-region)
   :custom (genkou-cols . 20))
 ```
 
@@ -51,10 +52,12 @@ M-x genkou-wrap-mode
 
 - **`C-c C-c`** — バッファの内容から原稿用紙PDFを生成します。バッファがファイルを訪問していれば、同じ場所に同名の `.pdf` として保存されます。
 - **`C-c C-v`** — 直近に生成したPDFを Skim.app（macOS）で開きます。まだ生成していなければ自動で先に `C-c C-c` 相当の処理を行います。
+- **`C-c C-f`** — バッファ全体を20字ごとに改行します（禁則処理つき）。原稿用紙のマス割りを editor 上でも確認したいときに使います。段落区切り（空行）はそのまま保持されます。
+- **`C-c C-r`** — `C-c C-f` で挿入された改行を取り除き、元の段落だけの状態に戻します。空行による段落区切りは残ります。
 
 **改行を気にせず自由に書いて構いません。** 禁則処理・20字ごとの折り返し・ページ分割はすべて `genkou.py` 側が担当します。
 
-（`M-x genkou-wrap-buffer` で、見た目上だけ20字ごとに禁則処理つきで改行することも可能ですが、PDF生成には必須ではありません。）
+（`C-c C-f`（`M-x genkou-wrap-buffer`）で見た目上だけ20字ごとに禁則処理つきで改行することも可能ですが、PDF生成には必須ではありません。`C-c C-r`（`M-x genkou-unwrap-buffer`）で元に戻せます。）
 
 ### 初回セットアップについて
 
