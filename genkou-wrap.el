@@ -26,7 +26,7 @@
 ;;                :type git
 ;;                :host github
 ;;                :repo "yourname/genkou-wrap"
-;;                :files ("genkou-wrap.el" "genkou.py" "ipag.ttf"
+;;                :files ("genkou-wrap.el" "genkou.py" "ipam.ttf"
 ;;                        "requirements.txt" "IPA_Font_License.txt"))
 ;;     :commands (genkou-wrap-mode genkou-wrap-buffer genkou-wrap-region)
 ;;     :custom (genkou-cols . 20))

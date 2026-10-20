@@ -7,7 +7,7 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
 - **400字を超える原稿は自動で複数ページに分割**
 - **改行を段落区切りとして認識**（行末まで空白で埋めて次の行へ）
 - **日本語の禁則処理に対応**（句読点や閉じ括弧が行頭に来ない、開き括弧が行末に来ない）
-- **フォント埋め込み済み**（IPAゴシック同梱。環境を選ばず文字化けしません）
+- **フォント埋め込み済み**（IPA明朝同梱。環境を選ばず文字化けしません）
 - **Emacs (straight.el + leaf) 連携**：`C-c C-c` でPDF生成、`C-c C-v` でSkimプレビュー、`C-c C-f` / `C-c C-r` でバッファ上の20字折り返しのオン・オフ
 
 ## 同梱ファイル
@@ -16,7 +16,7 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
 |---|---|
 | `genkou-wrap.el` | Emacs連携パッケージ本体 |
 | `genkou.py` | PDF生成スクリプト本体 |
-| `ipag.ttf` | 埋め込み用フォント（IPAゴシック） |
+| `ipam.ttf` | 埋め込み用フォント（IPA明朝） |
 | `IPA_Font_License.txt` | フォントのライセンス条項 |
 | `requirements.txt` | 必要なPythonパッケージ一覧 |
 | `README.md` | このファイル |
@@ -33,7 +33,7 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
              :type git
              :host github
              :repo "yourname/genkou-wrap"
-             :files ("genkou-wrap.el" "genkou.py" "ipag.ttf"
+             :files ("genkou-wrap.el" "genkou.py" "ipam.ttf"
                      "requirements.txt" "IPA_Font_License.txt"))
   :commands (genkou-wrap-mode genkou-wrap-buffer genkou-wrap-region
              genkou-unwrap-buffer genkou-unwrap-region)
@@ -96,22 +96,25 @@ rm -rf .venv
 
 - 用紙: A4 縦向き（210mm × 297mm）
 - 文字方向: 横書き
-- マス目: 20列 × 20行（400字詰め）、幅9.3mm × 高さ9.75mm
-- 罫線: 淡いグレー。外枠がやや太め、内側のマス目線は細め
-- 行間: 各行の間に約3.4mmの隙間
-- フッター: 中央にページ番号
+- マス目: 20列 × 20行（400字詰め）、1マス 22pt × 22pt（約7.8mm角）
+- 罫線: 25%グレー、太さ0.25pt（外枠・内側とも同じ）
+- 行間: 各行の間に11ptの隙間
+- 本文: IPA明朝 12pt
+- 行番号: 5行ごと（5・10・15・20）に罫線の左側へ表示
+- キャプション: 罫線の右下に「20W × 20L = 400」を表示
+- フッター: 2ページ以上のとき中央にページ番号（1ページのみのときは表示しない）
 - 禁則処理:
   - 行頭禁則（句読点・閉じ括弧・小さい仮名などは行頭に来ない → 前の行の最後のマスに小さく同居）
   - 行末禁則（開き括弧は行末に来ない → 早めに行を区切り次の行へ送る）
 
 ## フォントのライセンスについて
 
-同梱の `ipag.ttf` は「IPAフォントライセンスv1.0」の下で配布されています。複製・改変・再頒布が許可されたオープンなフォントです。詳細は `IPA_Font_License.txt` を参照してください。
+同梱の `ipam.ttf`（IPA明朝）は「IPAフォントライセンスv1.0」の下で配布されています。複製・改変・再頒布が許可されたオープンなフォントです。詳細は `IPA_Font_License.txt` を参照してください。
 
 ## トラブルシューティング
 
 **`[error] フォントファイルが見つかりません` と表示される**
-→ `ipag.ttf` が `genkou.py` と同じフォルダにあるか確認してください。
+→ `ipam.ttf` が `genkou.py` と同じフォルダにあるか確認してください。
 
 **`pip install` で `PermissionError: [Errno 1] Operation not permitted` が出る（macOS）**
 → Desktop・Documents・Downloads フォルダで作業していると、ターミナルアプリにmacOSのプライバシー保護がかかっている場合があります。「システム設定 → プライバシーとセキュリティ → フルディスクアクセス」で使用中のターミナルアプリを許可してから、ターミナルを再起動してください。
@@ -121,5 +124,5 @@ rm -rf .venv
 
 ## カスタマイズしたい場合
 
-`genkou.py` 冒頭のパラメータ（マス目サイズ・余白・色など）、または `genkou-wrap.el` の `defcustom`（`genkou-cols`、`genkou-wrap-venv-directory`、`genkou-wrap-pdf-viewer` など）を編集してください。
+`genkou.py` 冒頭のパラメータ（マス目サイズ・余白・色・フォントなど）、または `genkou-wrap.el` の `defcustom`（`genkou-cols`、`genkou-wrap-venv-directory`、`genkou-wrap-pdf-viewer` など）を編集してください。
 

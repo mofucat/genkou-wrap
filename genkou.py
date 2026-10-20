@@ -4,6 +4,7 @@ genkou.py — 20×20 原稿用紙ジェネレータ（PDF直接出力版）
 
 reportlab のみで完結するため、LibreOffice などの外部アプリ不要。
 標準入力からテキストを受け取り、A4縦・横書き・20×20マスの原稿用紙PDFを生成する。
+書式は test.pdf（行番号・「20W × 20L = 400」のキャプション付き）に合わせている。
 
 使い方:
     echo "テスト原稿です。" | python3 genkou.py
@@ -24,28 +25,37 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 # --- パラメータ ---
+# 寸法はすべて pt（1pt = 1/72 inch）。test.pdf（A4・20×20マス）の実測値に合わせている。
 COLS = 20
 ROWS = 20
 
-CELL_W = 9.3 * mm
-CELL_H = 9.75 * mm
-GAP = 3.4 * mm
+CELL_W = 22.0  # マスの幅
+CELL_H = 22.0  # マスの高さ
+GAP = 11.0     # 行と行の間の隙間
 
-MARGIN_TOP = 15 * mm
-MARGIN_LEFT = 12 * mm
-MARGIN_RIGHT = 12 * mm
-MARGIN_BOTTOM = 8 * mm
+GRID_LEFT = 77.0  # 用紙左端から罫線左端まで
+GRID_TOP = 96.0   # 用紙上端から罫線上端まで
 FOOTER_Y = 4 * mm  # 用紙下端からページ番号までの距離
 
-OUTER_COLOR = (0xA6 / 255, 0xA6 / 255, 0xA6 / 255)
-INNER_COLOR = (0xD9 / 255, 0xD9 / 255, 0xD9 / 255)
-OUTER_WIDTH = 0.6
-INNER_WIDTH = 0.25
+LINE_GRAY = 0.25   # 罫線・ラベルの色（グレースケール。0=黒, 1=白）
+LINE_WIDTH = 0.25  # 罫線の太さ（外枠・内側とも同じ）
 
-FONT_NAME = "IPAGothic"  # 埋め込みフォント（同ディレクトリの ipag.ttf を使用）
-FONT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ipag.ttf")
-FONT_SIZE = 12.5
-SMALL_FONT_SIZE = 8.5  # 禁則処理でマスに同居させる文字（句読点など）のサイズ
+# 本文フォント（同ディレクトリの ipam.ttf = IPA明朝 を埋め込む）
+FONT_NAME = "IPAMincho"
+FONT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ipam.ttf")
+FONT_SIZE = 12.0
+SMALL_FONT_SIZE = 8.0  # 禁則処理でマスに同居させる文字（句読点など）のサイズ
+TEXT_BASELINE = 16.0   # 本文のベースライン位置（マス上端から下向きに測った距離）
+TEXT_X_SHIFT = 0.64    # 本文を罫線に対して右へずらす量（test.pdf の実測値）
+
+# ラベル用フォント（行番号・「20W × 20L = 400」・ページ番号）。
+# PDF標準フォントなので埋め込み不要。
+LABEL_FONT = "Times-Italic"
+LABEL_FONT_SIZE = 9
+LABEL_ROW_INTERVAL = 5       # 何行ごとに行番号を振るか
+LABEL_ROW_RIGHT_GAP = 3.0    # 行番号の右端と罫線左端の間隔
+LABEL_ROW_BASELINE = 13.637  # 行番号のベースライン位置（マス上端から下向きに測った距離）
+LABEL_CAPTION_BASELINE = 10.137  # キャプションのベースライン位置（罫線下端から下向きに測った距離）
 
 FULL_WIDTH_SPACE = "　"
 
@@ -70,7 +80,7 @@ def register_font():
     if not os.path.exists(FONT_FILE):
         sys.stderr.write(
             f"[error] フォントファイルが見つかりません: {FONT_FILE}\n"
-            f"        genkou.py と同じフォルダに ipag.ttf を置いてください。\n"
+            f"        genkou.py と同じフォルダに ipam.ttf を置いてください。\n"
         )
         sys.exit(1)
     pdfmetrics.registerFont(TTFont(FONT_NAME, FONT_FILE))
@@ -152,79 +162,87 @@ def paginate_rows(rows, rows_per_page: int = ROWS):
     return pages
 
 
-def draw_manuscript(c: canvas.Canvas, grid, page_width, page_height):
-    grid_left = MARGIN_LEFT
-    grid_top = page_height - MARGIN_TOP  # PDF座標系は左下原点なので上端をここで計算
+def draw_grid(c: canvas.Canvas, page_height):
+    """罫線を描く。外枠（rect）＋行ごとの上下の横線＋マス内の縦線。"""
+    left = GRID_LEFT
+    right = left + COLS * CELL_W
+    top = page_height - GRID_TOP
+    bottom = top - (ROWS * CELL_H + (ROWS - 1) * GAP)
+
+    c.setStrokeGray(LINE_GRAY)
+    c.setLineWidth(LINE_WIDTH)
+
+    # 外枠（行間の隙間も含めて、左右の辺は上端から下端まで連続する）
+    c.rect(left, bottom, right - left, top - bottom, stroke=1, fill=0)
 
     for row_idx in range(ROWS):
-        row_top = grid_top - row_idx * (CELL_H + GAP)
+        row_top = top - row_idx * (CELL_H + GAP)
         row_bottom = row_top - CELL_H
 
-        is_first_row = row_idx == 0
-        is_last_row = row_idx == ROWS - 1
+        # 各マス行の上辺・下辺（最初の上辺と最後の下辺は外枠が兼ねる）
+        if row_idx > 0:
+            c.line(left, row_top, right, row_top)
+        if row_idx < ROWS - 1:
+            c.line(left, row_bottom, right, row_bottom)
 
-        # --- そのマス行の罫線 ---
+        # マス内の縦線（左右の端は外枠が兼ねる）
+        for col_idx in range(1, COLS):
+            x = left + col_idx * CELL_W
+            c.line(x, row_bottom, x, row_top)
+
+
+def draw_characters(c: canvas.Canvas, grid, page_height):
+    """マスに文字を描く。"""
+    c.setFillGray(0)
+    for row_idx in range(ROWS):
+        row_top = page_height - GRID_TOP - row_idx * (CELL_H + GAP)
+        row_bottom = row_top - CELL_H
+        baseline = row_top - TEXT_BASELINE
+
         for col_idx in range(COLS):
-            cell_left = grid_left + col_idx * CELL_W
-            cell_right = cell_left + CELL_W
-            is_first_col = col_idx == 0
-            is_last_col = col_idx == COLS - 1
-
-            # 上辺
-            c.setStrokeColorRGB(*(OUTER_COLOR if is_first_row else INNER_COLOR))
-            c.setLineWidth(OUTER_WIDTH if is_first_row else INNER_WIDTH)
-            c.line(cell_left, row_top, cell_right, row_top)
-
-            # 下辺
-            c.setStrokeColorRGB(*(OUTER_COLOR if is_last_row else INNER_COLOR))
-            c.setLineWidth(OUTER_WIDTH if is_last_row else INNER_WIDTH)
-            c.line(cell_left, row_bottom, cell_right, row_bottom)
-
-            # 左辺
-            c.setStrokeColorRGB(*(OUTER_COLOR if is_first_col else INNER_COLOR))
-            c.setLineWidth(OUTER_WIDTH if is_first_col else INNER_WIDTH)
-            c.line(cell_left, row_bottom, cell_left, row_top)
-
-            # 右辺
-            c.setStrokeColorRGB(*(OUTER_COLOR if is_last_col else INNER_COLOR))
-            c.setLineWidth(OUTER_WIDTH if is_last_col else INNER_WIDTH)
-            c.line(cell_right, row_bottom, cell_right, row_top)
-
-            # 文字（禁則処理で2文字が同居する場合がある）
             cell_content = grid[row_idx][col_idx]
-            if cell_content.strip():
-                c.setFillColorRGB(0, 0, 0)
-                if len(cell_content) >= 2:
-                    # 主文字 + 禁則文字（句読点など）が同居するマス
-                    main_char, small_char = cell_content[0], cell_content[1]
-                    c.setFont(FONT_NAME, FONT_SIZE)
-                    mx = cell_left + CELL_W * 0.38
-                    my = row_bottom + CELL_H / 2 - FONT_SIZE * 0.35
-                    c.drawCentredString(mx, my, main_char)
+            if not cell_content.strip():
+                continue
 
-                    c.setFont(FONT_NAME, SMALL_FONT_SIZE)
-                    sx = cell_right - CELL_W * 0.20
-                    sy = row_bottom + CELL_H * 0.16
-                    c.drawCentredString(sx, sy, small_char)
-                else:
-                    c.setFont(FONT_NAME, FONT_SIZE)
-                    cx = cell_left + CELL_W / 2
-                    cy = row_bottom + CELL_H / 2 - FONT_SIZE * 0.35
-                    c.drawCentredString(cx, cy, cell_content)
+            cell_left = GRID_LEFT + col_idx * CELL_W + TEXT_X_SHIFT
+            cell_right = cell_left + CELL_W
 
-        # --- 行間の隙間部分：外枠の左右だけ継続させる ---
-        if not is_last_row:
-            gap_top = row_bottom
-            gap_bottom = gap_top - GAP
-            c.setStrokeColorRGB(*OUTER_COLOR)
-            c.setLineWidth(OUTER_WIDTH)
-            c.line(grid_left, gap_top, grid_left, gap_bottom)
-            c.line(grid_left + COLS * CELL_W, gap_top, grid_left + COLS * CELL_W, gap_bottom)
+            if len(cell_content) >= 2:
+                # 主文字 + 禁則文字（句読点など）が同居するマス
+                main_char, small_char = cell_content[0], cell_content[1]
+                c.setFont(FONT_NAME, FONT_SIZE)
+                c.drawCentredString(cell_left + CELL_W * 0.38, baseline, main_char)
+
+                c.setFont(FONT_NAME, SMALL_FONT_SIZE)
+                c.drawCentredString(cell_right - CELL_W * 0.20,
+                                    row_bottom + CELL_H * 0.16, small_char)
+            else:
+                c.setFont(FONT_NAME, FONT_SIZE)
+                c.drawCentredString(cell_left + CELL_W / 2, baseline, cell_content)
+
+
+def draw_labels(c: canvas.Canvas, page_height):
+    """行番号（5行ごと）と、罫線の右下のキャプション（例: 20W × 20L = 400）を描く。"""
+    c.setFillGray(LINE_GRAY)
+    c.setFont(LABEL_FONT, LABEL_FONT_SIZE)
+
+    for row_idx in range(ROWS):
+        row_no = row_idx + 1
+        if row_no % LABEL_ROW_INTERVAL:
+            continue
+        row_top = page_height - GRID_TOP - row_idx * (CELL_H + GAP)
+        c.drawRightString(GRID_LEFT - LABEL_ROW_RIGHT_GAP,
+                          row_top - LABEL_ROW_BASELINE, str(row_no))
+
+    grid_bottom = page_height - GRID_TOP - (ROWS * CELL_H + (ROWS - 1) * GAP)
+    caption = f"{COLS}W \u00d7 {ROWS}L = {COLS * ROWS}"
+    c.drawRightString(GRID_LEFT + COLS * CELL_W,
+                      grid_bottom - LABEL_CAPTION_BASELINE, caption)
 
 
 def draw_footer(c: canvas.Canvas, page_num, page_width):
-    c.setFont(FONT_NAME, 9)
-    c.setFillColorRGB(0.5, 0.5, 0.5)
+    c.setFont(LABEL_FONT, LABEL_FONT_SIZE)
+    c.setFillGray(LINE_GRAY)
     c.drawCentredString(page_width / 2, FOOTER_Y, str(page_num))
 
 
@@ -238,8 +256,11 @@ def generate_pdf(text: str, output_path: str):
     pages = paginate_rows(rows)
 
     for page_idx, grid in enumerate(pages, start=1):
-        draw_manuscript(c, grid, page_width, page_height)
-        draw_footer(c, page_idx, page_width)
+        draw_grid(c, page_height)
+        draw_characters(c, grid, page_height)
+        draw_labels(c, page_height)
+        if len(pages) > 1:  # 1ページのみの場合はページ番号を付けない（test.pdf に合わせる）
+            draw_footer(c, page_idx, page_width)
         c.showPage()
 
     c.save()
