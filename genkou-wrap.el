@@ -13,6 +13,7 @@
 ;; - genkou-wrap-mode 内で
 ;;     C-c C-c : バッファの内容から原稿用紙PDFを生成
 ;;     C-c C-v : 生成したPDFを Skim.app（macOS）でプレビュー
+;;     C-c C-s : PDFを生成し、指定したフォルダ・ファイル名で保存
 ;;     C-c C-f : バッファ全体を20字ごとに改行（禁則処理つき）
 ;;     C-c C-r : C-c C-f による改行を取り除いて元に戻す
 ;; - 初回の C-c C-c 実行時に、専用の Python 仮想環境を自動作成し、
@@ -26,7 +27,7 @@
 ;;                :type git
 ;;                :host github
 ;;                :repo "yourname/genkou-wrap"
-;;                :files ("genkou-wrap.el" "genkou.py" "ipam.ttf"
+;;                :files ("genkou-wrap.el" "genkou.py" "*.ttf"
 ;;                        "requirements.txt" "IPA_Font_License.txt"))
 ;;     :commands (genkou-wrap-mode genkou-wrap-buffer genkou-wrap-region)
 ;;     :custom (genkou-cols . 20))
@@ -35,6 +36,7 @@
 ;;   M-x genkou-wrap-mode  でマイナーモードを有効化した上で
 ;;   C-c C-c  … PDF生成
 ;;   C-c C-v  … Skimでプレビュー
+;;   C-c C-s  … 指定した場所にPDFを保存
 ;;   C-c C-f  … 20字ごとに改行
 ;;   C-c C-r  … 改行を元に戻す
 
@@ -61,6 +63,14 @@ straight のビルドディレクトリとは独立させ、パッケージ更�
 (defcustom genkou-wrap-pdf-viewer "Skim"
   "PDFプレビューに使う macOS アプリケーション名（`open -a` に渡す）。"
   :type 'string
+  :group 'genkou-wrap)
+
+(defcustom genkou-wrap-save-directory nil
+  "`genkou-wrap-save' (C-c C-s) で保存先を尋ねるときの初期ディレクトリ。
+nil の場合は、直近に保存したディレクトリ、まだなければバッファの
+`default-directory' から始める。"
+  :type '(choice (const :tag "自動（直近の保存先 → カレントディレクトリ）" nil)
+                 directory)
   :group 'genkou-wrap)
 
 ;; --- 禁則文字 ---
@@ -248,11 +258,45 @@ COLS 文字幅の行のリストに分割して返す。"
     (error "genkou-wrap-preview は現在 macOS のみ対応しています（%s で開いてください: %s）"
            genkou-wrap-pdf-viewer genkou-wrap--last-pdf))))
 
+;; 直近に C-c C-s で保存したディレクトリ（次回の初期ディレクトリになる）
+(defvar genkou-wrap--last-save-directory nil)
+
+;;;###autoload
+(defun genkou-wrap-save ()
+  "原稿用紙PDFを生成し、ユーザーが指定した場所に保存する。
+バッファの現在の内容から毎回PDFを作り直すので、常に最新の内容が保存される。
+保存先にフォルダだけを指定した場合は、既定のファイル名で保存する。"
+  (interactive)
+  (genkou-wrap-compile)
+  (let* ((src genkou-wrap--last-pdf)
+         (default-name (file-name-nondirectory src))
+         (start-dir (file-name-as-directory
+                     (expand-file-name
+                      (or genkou-wrap--last-save-directory
+                          genkou-wrap-save-directory
+                          default-directory))))
+         (dest (expand-file-name
+                (read-file-name "PDFの保存先: " start-dir nil nil default-name)))
+         (dest (if (directory-name-p dest)
+                   (expand-file-name default-name dest)
+                 dest))
+         (dest (if (file-name-extension dest) dest (concat dest ".pdf")))
+         (dest-dir (file-name-directory dest)))
+    (unless (file-directory-p dest-dir)
+      (if (y-or-n-p (format "%s がありません。作成しますか? " dest-dir))
+          (make-directory dest-dir t)
+        (user-error "genkou-wrap: 保存を中止しました")))
+    ;; 既存ファイルがあるときは上書きの確認を求める
+    (copy-file src dest 1)
+    (setq genkou-wrap--last-save-directory dest-dir)
+    (message "genkou-wrap: 保存しました -> %s" dest)))
+
 ;;;###autoload
 (defvar genkou-wrap-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") #'genkou-wrap-compile)
     (define-key map (kbd "C-c C-v") #'genkou-wrap-preview)
+    (define-key map (kbd "C-c C-s") #'genkou-wrap-save)
     (define-key map (kbd "C-c C-f") #'genkou-wrap-buffer)
     (define-key map (kbd "C-c C-r") #'genkou-unwrap-buffer)
     map)

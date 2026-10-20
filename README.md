@@ -8,7 +8,7 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
 - **改行を段落区切りとして認識**（行末まで空白で埋めて次の行へ）
 - **日本語の禁則処理に対応**（句読点や閉じ括弧が行頭に来ない、開き括弧が行末に来ない）
 - **フォント埋め込み済み**（IPA明朝同梱。環境を選ばず文字化けしません）
-- **Emacs (straight.el + leaf) 連携**：`C-c C-c` でPDF生成、`C-c C-v` でSkimプレビュー、`C-c C-f` / `C-c C-r` でバッファ上の20字折り返しのオン・オフ
+- **Emacs (straight.el + leaf) 連携**：`C-c C-c` でPDF生成、`C-c C-v` でSkimプレビュー、`C-c C-s` で任意の場所に保存、`C-c C-f` / `C-c C-r` でバッファ上の20字折り返しのオン・オフ
 
 ## 同梱ファイル
 
@@ -33,12 +33,14 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
              :type git
              :host github
              :repo "yourname/genkou-wrap"
-             :files ("genkou-wrap.el" "genkou.py" "ipam.ttf"
+             :files ("genkou-wrap.el" "genkou.py" "*.ttf"
                      "requirements.txt" "IPA_Font_License.txt"))
   :commands (genkou-wrap-mode genkou-wrap-buffer genkou-wrap-region
              genkou-unwrap-buffer genkou-unwrap-region)
   :custom (genkou-cols . 20))
 ```
+
+フォントファイルはレシピの `:files` に含まれていないと straight のビルドディレクトリにリンクされず、PDF生成に失敗します。`"*.ttf"` と書いておけば、フォントを差し替えても設定を直す必要がありません。フォントを変更したときは、新しい `.ttf` を `git add` してpushした上で `M-x straight-pull-package` → `M-x straight-rebuild-package` を実行してください。
 
 プライベートリポジトリの場合、SSH鍵でのGitHub認証があらかじめ必要です。
 
@@ -52,6 +54,7 @@ M-x genkou-wrap-mode
 
 - **`C-c C-c`** — バッファの内容から原稿用紙PDFを生成します。バッファがファイルを訪問していれば、同じ場所に同名の `.pdf` として保存されます。
 - **`C-c C-v`** — 直近に生成したPDFを Skim.app（macOS）で開きます。まだ生成していなければ自動で先に `C-c C-c` 相当の処理を行います。
+- **`C-c C-s`** — PDFを生成し、指定した場所に保存します。保存先を尋ねられるので、フォルダとファイル名を入力してください（フォルダだけ指定した場合は `genkou-draft.pdf` などの既定名になります）。同名のファイルがあれば上書きの確認があり、存在しないフォルダは作成するか確認されます。次回は直前に保存したフォルダから始まります。初期フォルダを固定したい場合は `genkou-wrap-save-directory` を設定してください。
 - **`C-c C-f`** — バッファ全体を20字ごとに改行します（禁則処理つき）。原稿用紙のマス割りを editor 上でも確認したいときに使います。段落区切り（空行）はそのまま保持されます。
 - **`C-c C-r`** — `C-c C-f` で挿入された改行を取り除き、元の段落だけの状態に戻します。空行による段落区切りは残ります。
 
@@ -124,5 +127,5 @@ rm -rf .venv
 
 ## カスタマイズしたい場合
 
-`genkou.py` 冒頭のパラメータ（マス目サイズ・余白・色・フォントなど）、または `genkou-wrap.el` の `defcustom`（`genkou-cols`、`genkou-wrap-venv-directory`、`genkou-wrap-pdf-viewer` など）を編集してください。
+`genkou.py` 冒頭のパラメータ（マス目サイズ・余白・色・フォントなど）、または `genkou-wrap.el` の `defcustom`（`genkou-cols`、`genkou-wrap-venv-directory`、`genkou-wrap-pdf-viewer`、`genkou-wrap-save-directory` など）を編集してください。
 
