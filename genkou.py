@@ -4,14 +4,15 @@ genkou.py — 20×20 原稿用紙ジェネレータ（PDF直接出力版）
 
 reportlab のみで完結するため、LibreOffice などの外部アプリ不要。
 標準入力からテキストを受け取り、A4縦・横書き・20×20マスの原稿用紙PDFを生成する。
-書式は test.pdf（行番号・「20W × 20L = 400」のキャプション付き）に合わせている。
+書式は、基準にした見本のPDF（行番号・「20W × 20L = 400」のキャプション付き）に合わせている。
+禁則処理（行頭・行末）にも対応し、「。」」のように禁則文字が続く場合は前の行の末尾にまとめる。
 
 使い方:
     echo "テスト原稿です。" | python3 genkou.py
     cat draft.txt | python3 genkou.py -o output.pdf
 
 セットアップ（初回のみ）:
-    pip install reportlab
+    pip install -r requirements.txt
 """
 
 import sys
@@ -25,7 +26,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 # --- パラメータ ---
-# 寸法はすべて pt（1pt = 1/72 inch）。test.pdf（A4・20×20マス）の実測値に合わせている。
+# 寸法はすべて pt（1pt = 1/72 inch）。基準にした見本PDF（A4・20×20マス）の実測値に合わせている。
 COLS = 20
 ROWS = 20
 
@@ -48,7 +49,7 @@ SMALL_FONT_SIZE = 8.0  # 禁則処理でマスに同居させる文字（句読�
 MAX_HANG = 3           # 行末のマスに同居（ぶら下げ）させられる禁則文字の最大数（例: 。』」）
 HANG_OUTSIDE_GAP = 1.5  # 2文字目以降が罫線の外にはみ出すとき、罫線との間に空ける隙間
 TEXT_BASELINE = 16.0   # 本文のベースライン位置（マス上端から下向きに測った距離）
-TEXT_X_SHIFT = 0.64    # 本文を罫線に対して右へずらす量（test.pdf の実測値）
+TEXT_X_SHIFT = 0.64    # 本文を罫線に対して右へずらす量（見本PDFの実測値）
 
 # ラベル用フォント（行番号・「20W × 20L = 400」・ページ番号）。
 # PDF標準フォントなので埋め込み不要。
@@ -263,7 +264,7 @@ def draw_footer(c: canvas.Canvas, page_num, page_width):
 def generate_pdf(text: str, output_path: str):
     register_font()
 
-    page_width, page_height = A4  # portrait, points単位(reportlabはptだがmm使用のため変換済み変数を使う)
+    page_width, page_height = A4  # 縦向き。単位は pt
     c = canvas.Canvas(output_path, pagesize=A4)
 
     rows = text_to_rows(text)
@@ -273,7 +274,7 @@ def generate_pdf(text: str, output_path: str):
         draw_grid(c, page_height)
         draw_characters(c, grid, page_height)
         draw_labels(c, page_height)
-        if len(pages) > 1:  # 1ページのみの場合はページ番号を付けない（test.pdf に合わせる）
+        if len(pages) > 1:  # 1ページのみの場合はページ番号を付けない（見本PDFに合わせる）
             draw_footer(c, page_idx, page_width)
         c.showPage()
 

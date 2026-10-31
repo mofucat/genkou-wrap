@@ -1,7 +1,7 @@
 # genkou-wrap — 20×20 原稿用紙PDFジェネレータ + Emacs連携
 
 標準入力から受け取ったテキストを、A4縦・横書き・20×20マスの原稿用紙PDFに変換します。
-Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで行える連携パッケージ(`genkou-wrap.el`)も同梱しています。
+Emacsから `C-c C-c` でPDF生成、`C-c C-v` で好みのPDFビューア（macOSの既定は Skim.app）で開くところまで行える連携パッケージ(`genkou-wrap.el`)も同梱しています。
 
 - **reportlab のみで完結**：LibreOffice など外部アプリのインストール不要
 - **400字を超える原稿は自動で複数ページに分割**
