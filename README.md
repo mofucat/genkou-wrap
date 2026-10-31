@@ -28,7 +28,7 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
 
 ### インストール
 
-このリポジトリをGitHubにpushした上で：
+`init.el` に次の設定を追加します：
 
 ```elisp
 (leaf genkou-wrap
@@ -44,8 +44,6 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
 ```
 
 フォントファイルはレシピの `:files` に含まれていないと straight のビルドディレクトリにリンクされず、PDF生成に失敗します。`"*.ttf"` と書いておけば、フォントを差し替えても設定を直す必要がありません。フォントを変更したときは、新しい `.ttf` を `git add` してpushした上で `M-x straight-pull-package` → `M-x straight-rebuild-package` を実行してください。
-
-プライベートリポジトリの場合、SSH鍵でのGitHub認証があらかじめ必要です。
 
 ### 使う
 
@@ -147,7 +145,7 @@ emacs -Q --batch -L . -l genkou-wrap-test.el -f ert-run-tests-batch-and-exit   #
 
 ## 制作について
 
-仕様と設計は作者、実装の大部分は Claude（Anthropic）の支援によるものです。
+仕様と設計はmofuが、実装の大部分は Claude（Anthropic）の支援によるものです。
 
 ## ライセンス
 
