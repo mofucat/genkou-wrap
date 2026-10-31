@@ -6,9 +6,9 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
 - **reportlab のみで完結**：LibreOffice など外部アプリのインストール不要
 - **400字を超える原稿は自動で複数ページに分割**
 - **改行を段落区切りとして認識**（行末まで空白で埋めて次の行へ）
-- **日本語の禁則処理に対応**（句読点や閉じ括弧が行頭に来ない、開き括弧が行末に来ない）
+- **日本語の禁則処理に対応**（句読点や閉じ括弧が行頭に来ない、開き括弧が行末に来ない。`。」` のように続く場合もまとめて前の行の末尾へ）
 - **フォント埋め込み済み**（IPA明朝同梱。環境を選ばず文字化けしません）
-- **Emacs (straight.el + leaf) 連携**：`C-c C-c` でPDF生成、`C-c C-v` でSkimプレビュー、`C-c C-s` で任意の場所に保存、`C-c C-f` / `C-c C-r` でバッファ上の20字折り返しのオン・オフ
+- **Emacs (straight.el + leaf) 連携**：`C-c C-c` でPDF生成（既定の出力先は `~/.emacs.d/genkou-wrap/`。同名のPDFがあれば上書き/別名保存を選択）、`C-c C-v` で好みのビューアで開く、`C-c C-f` / `C-c C-r` でバッファ上の20字折り返しのオン・オフ
 
 ## 同梱ファイル
 
@@ -19,6 +19,9 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
 | `ipam.ttf` | 埋め込み用フォント（IPA明朝） |
 | `IPA_Font_License.txt` | フォントのライセンス条項 |
 | `requirements.txt` | 必要なPythonパッケージ一覧 |
+| `test_genkou.py` | `genkou.py` のテスト（pytest） |
+| `genkou-wrap-test.el` | `genkou-wrap.el` のテスト（ERT） |
+| `LICENSE` | このプログラム本体のライセンス（MIT） |
 | `README.md` | このファイル |
 
 ## Emacsでの使い方（straight.el + leaf）
@@ -32,7 +35,7 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
   :straight (genkou-wrap
              :type git
              :host github
-             :repo "yourname/genkou-wrap"
+             :repo "mofucat/genkou-wrap"
              :files ("genkou-wrap.el" "genkou.py" "*.ttf"
                      "requirements.txt" "IPA_Font_License.txt"))
   :commands (genkou-wrap-mode genkou-wrap-buffer genkou-wrap-region
@@ -52,9 +55,11 @@ Emacsから `C-c C-c` でPDF生成、`C-c C-v` でSkim.appプレビューまで�
 M-x genkou-wrap-mode
 ```
 
-- **`C-c C-c`** — バッファの内容から原稿用紙PDFを生成します。バッファがファイルを訪問していれば、同じ場所に同名の `.pdf` として保存されます。
-- **`C-c C-v`** — 直近に生成したPDFを Skim.app（macOS）で開きます。まだ生成していなければ自動で先に `C-c C-c` 相当の処理を行います。
-- **`C-c C-s`** — PDFを生成し、指定した場所に保存します。保存先を尋ねられるので、フォルダとファイル名を入力してください（フォルダだけ指定した場合は `genkou-draft.pdf` などの既定名になります）。同名のファイルがあれば上書きの確認があり、存在しないフォルダは作成するか確認されます。次回は直前に保存したフォルダから始まります。初期フォルダを固定したい場合は `genkou-wrap-save-directory` を設定してください。
+- **`C-c C-c`** — バッファの内容から原稿用紙PDFを生成します。PDFは `genkou-wrap-output-directory`（既定: `~/.emacs.d/genkou-wrap/`）に、訪問しているファイルと同名の `.pdf`（ファイルを訪問していなければバッファ名）として出力されます。出力先のフォルダは自動で作られます。
+  - 同名のPDFが既にあるときは、**上書き / 別名で保存 / 中止** を選べます。「別名で保存」を選ぶと `名前-1.pdf` を初期値にファイル名を尋ねます（別のフォルダも指定できます）。
+  - 同じバッファでは、一度決まった出力先を以後も使い続け、再生成のたびに上書きします（毎回は尋ねません）。
+  - `C-u C-c C-c` のように前置引数を付けると、ファイル名と保存先を明示的に指定できます。
+- **`C-c C-v`** — 直近に生成したPDFを開きます。まだ生成していなければ自動で先に `C-c C-c` 相当の処理を行います。開くアプリは `genkou-wrap-pdf-viewer` で変更できます（macOSの既定は Skim.app）。
 - **`C-c C-f`** — バッファ全体を20字ごとに改行します（禁則処理つき）。原稿用紙のマス割りを editor 上でも確認したいときに使います。段落区切り（空行）はそのまま保持されます。
 - **`C-c C-r`** — `C-c C-f` で挿入された改行を取り除き、元の段落だけの状態に戻します。空行による段落区切りは残ります。
 
@@ -67,6 +72,24 @@ M-x genkou-wrap-mode
 `C-c C-c` を初めて実行したとき、専用のPython仮想環境を自動的に作成し、`reportlab` をインストールします（数秒〜十数秒）。この仮想環境は `~/.emacs.d/genkou-wrap/venv` に作られ、`straight` のパッケージ更新(`straight-pull-package` 等)の影響を受けない独立した場所に置かれます。2回目以降は再作成されません。
 
 セットアップの様子は `*genkou-wrap-setup*` バッファで確認できます。失敗した場合もこのバッファにエラー内容が出力されます。
+
+### 設定
+
+`M-x customize-group RET genkou-wrap` または `setq` / leaf の `:custom` で変更できます。
+
+| 変数 | 既定値 | 内容 |
+|---|---|---|
+| `genkou-wrap-output-directory` | `~/.emacs.d/genkou-wrap/` | PDFの出力先 |
+| `genkou-wrap-venv-directory` | `~/.emacs.d/genkou-wrap/venv` | Python仮想環境の場所 |
+| `genkou-wrap-python-command` | `"python3"` | 仮想環境の作成に使うPython（pyenv や Homebrew のPythonを使うときはここを変更） |
+| `genkou-wrap-pdf-viewer` | macOS: `"Skim"` / その他: `nil` | `C-c C-v` で使うビューア（下記） |
+| `genkou-cols` | `20` | 1行の文字数（`genkou.py` の `COLS` と合わせる） |
+
+`genkou-wrap-pdf-viewer` の値：
+
+- `nil` — OS標準のアプリで開く（macOS: `open`、Windows: 関連付け、その他: `xdg-open`）
+- 文字列 — macOS ではアプリ名（`open -a` に渡す）、それ以外では実行するコマンド名
+- 関数 — PDFのパスを引数にその関数を呼ぶ。たとえば pdf-tools で開くなら `(setq genkou-wrap-pdf-viewer #'find-file-other-window)`
 
 ## コマンドラインでの使い方（Emacsを使わない場合）
 
@@ -107,8 +130,28 @@ rm -rf .venv
 - キャプション: 罫線の右下に「20W × 20L = 400」を表示
 - フッター: 2ページ以上のとき中央にページ番号（1ページのみのときは表示しない）
 - 禁則処理:
-  - 行頭禁則（句読点・閉じ括弧・小さい仮名などは行頭に来ない → 前の行の最後のマスに小さく同居）
+  - 行頭禁則（句読点・閉じ括弧・小さい仮名などは行頭に来ない → 前の行の最後のマスに小さく同居）。`。」` のように禁則文字が続く場合は、最大3文字までまとめて同居させます。2文字目以降は罫線の外（欄外）に並びます。原稿用紙で行頭に来てしまう句読点・閉じ括弧を、前の行の末尾（欄外）に書く作法に合わせています。禁則文字が4文字以上続く場合、4文字目以降は次の行の先頭になります。
   - 行末禁則（開き括弧は行末に来ない → 早めに行を区切り次の行へ送る）
+  - 三点リーダー（`……`）とダッシュ（`――`）は、行をまたいで分かれることがあります。行末にだけ空白ができるより読みやすいための仕様です。
+  - 句点の有無には手を加えません。かぎ括弧の中の文末に句点を打つか（`「…です。」`）は流儀が分かれるため（文部省の句読法案は打つとし、新聞などでは省くことが多い）、入力どおりに配置します。
+
+## テスト
+
+```bash
+pip install pytest
+pytest                                                                 # genkou.py
+emacs -Q --batch -L . -l genkou-wrap-test.el -f ert-run-tests-batch-and-exit   # genkou-wrap.el
+```
+
+禁則処理は Python 版（`genkou.py`）と Elisp 版（`genkou-wrap.el`）の両方にあるため、同じ入力と期待値を両方のテストに通して、実装が食い違わないようにしています。禁則処理を変えるときは、両方の実装とテストを揃えてください。
+
+## 制作について
+
+仕様と設計は作者、実装の大部分は Claude（Anthropic）の支援によるものです。
+
+## ライセンス
+
+このプログラム本体（`genkou.py`、`genkou-wrap.el` など）は [MIT License](LICENSE) で公開しています。同梱のフォントだけは別のライセンスです（次項）。
 
 ## フォントのライセンスについて
 
@@ -127,5 +170,5 @@ rm -rf .venv
 
 ## カスタマイズしたい場合
 
-`genkou.py` 冒頭のパラメータ（マス目サイズ・余白・色・フォントなど）、または `genkou-wrap.el` の `defcustom`（`genkou-cols`、`genkou-wrap-venv-directory`、`genkou-wrap-pdf-viewer`、`genkou-wrap-save-directory` など）を編集してください。
+`genkou.py` 冒頭のパラメータ（マス目サイズ・余白・色・フォントなど）、または `genkou-wrap.el` の `defcustom`（`genkou-cols`、`genkou-wrap-output-directory`、`genkou-wrap-venv-directory`、`genkou-wrap-python-command`、`genkou-wrap-pdf-viewer`。上の「設定」を参照）を編集してください。
 

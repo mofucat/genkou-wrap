@@ -45,6 +45,8 @@ FONT_NAME = "IPAMincho"
 FONT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ipam.ttf")
 FONT_SIZE = 12.0
 SMALL_FONT_SIZE = 8.0  # 禁則処理でマスに同居させる文字（句読点など）のサイズ
+MAX_HANG = 3           # 行末のマスに同居（ぶら下げ）させられる禁則文字の最大数（例: 。』」）
+HANG_OUTSIDE_GAP = 1.5  # 2文字目以降が罫線の外にはみ出すとき、罫線との間に空ける隙間
 TEXT_BASELINE = 16.0   # 本文のベースライン位置（マス上端から下向きに測った距離）
 TEXT_X_SHIFT = 0.64    # 本文を罫線に対して右へずらす量（test.pdf の実測値）
 
@@ -91,12 +93,15 @@ def _wrap_paragraph(chars, cols):
     1段落分の文字列(リスト)を、禁則処理を適用しながら cols 文字幅の行に分割する。
 
     - 行頭禁則: 次の行の先頭になるはずの文字が禁則文字なら、前の行の最後のマスに
-      同居させる（そのマスは「主文字＋小さい禁則文字」の2文字を保持する）。
+      同居させる（そのマスは「主文字＋小さい禁則文字」を保持する）。「。」」のように
+      禁則文字が続く場合は、MAX_HANG 文字までまとめて同居させる。
     - 行末禁則: 行の最後のマスに来るはずの文字が開き括弧などの禁則文字なら、
       その行を1文字分空けて早めに区切り、その文字は次の行の先頭に送る。
+    - 三点リーダー（……）やダッシュ（――）は、行をまたいで分かれてもよい
+      （行末に空白ができるより読みやすいため、意図した仕様）。
 
     戻り値: 行のリスト。各行は cols 個のセル。各セルは 1文字の文字列、または
-    （行頭禁則で同居した場合）2文字の文字列。
+    （行頭禁則で同居した場合）「主文字＋同居した禁則文字」の2〜(1+MAX_HANG)文字の文字列。
     """
     rows = []
     idx = 0
@@ -113,10 +118,14 @@ def _wrap_paragraph(chars, cols):
             row.append(ch)
             idx += 1
 
-        # 行頭禁則チェック：次に来る文字が禁則文字なら、今の行の最後のマスに同居させる
-        if row and idx < n and chars[idx] in LINE_START_FORBIDDEN:
-            row[-1] = row[-1] + chars[idx]
-            idx += 1
+        # 行頭禁則チェック：次に来る文字が禁則文字なら、今の行の最後のマスに同居させる。
+        # 「。」」のように禁則文字が連続する場合は、まとめて同居させる（MAX_HANG 文字まで）。
+        if row:
+            hung = 0
+            while idx < n and hung < MAX_HANG and chars[idx] in LINE_START_FORBIDDEN:
+                row[-1] = row[-1] + chars[idx]
+                idx += 1
+                hung += 1
 
         # 空きマスを埋める
         while len(row) < cols:
@@ -208,14 +217,19 @@ def draw_characters(c: canvas.Canvas, grid, page_height):
             cell_right = cell_left + CELL_W
 
             if len(cell_content) >= 2:
-                # 主文字 + 禁則文字（句読点など）が同居するマス
-                main_char, small_char = cell_content[0], cell_content[1]
+                # 主文字 + 禁則文字（句読点など）が同居するマス。
+                # 同居する文字は右下に小さく並べる。2文字目以降は罫線の外（欄外）に
+                # はみ出して並ぶ（同居が起きるのは必ず行の最後のマスなので、右は余白）。
+                main_char, hung_chars = cell_content[0], cell_content[1:]
                 c.setFont(FONT_NAME, FONT_SIZE)
                 c.drawCentredString(cell_left + CELL_W * 0.38, baseline, main_char)
 
                 c.setFont(FONT_NAME, SMALL_FONT_SIZE)
-                c.drawCentredString(cell_right - CELL_W * 0.20,
-                                    row_bottom + CELL_H * 0.16, small_char)
+                for i, small_char in enumerate(hung_chars):
+                    x = cell_right - CELL_W * 0.20 + i * SMALL_FONT_SIZE
+                    if i > 0:
+                        x += HANG_OUTSIDE_GAP  # 罫線に接しないよう少し離す
+                    c.drawCentredString(x, row_bottom + CELL_H * 0.16, small_char)
             else:
                 c.setFont(FONT_NAME, FONT_SIZE)
                 c.drawCentredString(cell_left + CELL_W / 2, baseline, cell_content)
