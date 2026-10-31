@@ -1,6 +1,7 @@
 ;;; genkou-wrap.el --- 原稿用紙PDF作成ユーティリティ -*- lexical-binding: t; -*-
 
-;; Author: (mofu)
+;; Author: mofu
+;; URL: https://github.com/mofucat/genkou-wrap
 ;; Version: 0.2.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: japanese, wp, tools
@@ -28,7 +29,7 @@
 ;;     :straight (genkou-wrap
 ;;                :type git
 ;;                :host github
-;;                :repo "yourname/genkou-wrap"
+;;                :repo "mofucat/genkou-wrap"
 ;;                :files ("genkou-wrap.el" "genkou.py" "*.ttf"
 ;;                        "requirements.txt" "IPA_Font_License.txt"))
 ;;     :commands (genkou-wrap-mode genkou-wrap-buffer genkou-wrap-region

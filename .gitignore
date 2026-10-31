@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Emacs Lisp
+*.elc
+
+# macOS
+.DS_Store
