@@ -16,7 +16,7 @@
 ;;     C-u C-c C-c : PDFのファイル名・保存先を指定して生成
 ;;     C-c C-v   : 生成したPDFを開く（ビューアは genkou-wrap-pdf-viewer で変更可）
 ;;     C-c C-f   : バッファ全体を20字ごとに改行（禁則処理つき）
-;;     C-c C-r   : C-c C-f による改行を取り除いて元に戻す
+;;     C-c C-r   : C-c C-f で入れた改行だけを取り除き、整形前の状態に戻す
 ;; - PDFは genkou-wrap-output-directory（既定: ~/.emacs.d/genkou-wrap/）に
 ;;   出力する。同名のPDFが既にあるときは「上書き／別名で保存／中止」を選べる。
 ;; - 初回の C-c C-c 実行時に、専用の Python 仮想環境を自動作成し、
@@ -41,7 +41,7 @@
 ;;   C-c C-c  … PDF生成（C-u を付けると保存先を指定）
 ;;   C-c C-v  … PDFを開く
 ;;   C-c C-f  … 20字ごとに改行
-;;   C-c C-r  … 改行を元に戻す
+;;   C-c C-r  … C-c C-f で入れた改行を取り除いて元に戻す
 
 ;;; Code:
 
@@ -142,29 +142,62 @@ COLS 文字幅の行のリストに分割して返す。
           (push (substring str row-start row-end) rows))))
     (nreverse rows)))
 
+(defconst genkou--wrap-newline
+  (propertize "\n" 'genkou-wrap-newline t 'rear-nonsticky t)
+  "genkou-wrap-region が挿入する改行。
+印（テキストプロパティ `genkou-wrap-newline'）が付いており、genkou-unwrap-region は
+この印の付いた改行だけを取り除く。これにより、原稿に元からあった改行（空行でも
+単独の改行でも）を壊さずに、wrap する前の状態へ戻せる。
+`rear-nonsticky' は、この改行の直後に入力した文字へ印が引き継がれないようにするため。")
+
 (defun genkou--wrap-text (text)
   "TEXT 全体を、既存の改行を段落区切りとして尊重しつつ、
-各段落内を genkou--wrap-paragraph で再改行した文字列を返す。"
+各段落内を genkou--wrap-paragraph で再改行した文字列を返す。
+段落内に新しく入れた改行には、`genkou--wrap-newline' の印が付く。"
   (let* ((paragraphs (split-string text "\n" nil)))
     (mapconcat
      (lambda (para)
        (if (string-empty-p para)
            ""
-         (mapconcat #'identity (genkou--wrap-paragraph para genkou-cols) "\n")))
+         (mapconcat #'identity
+                    (genkou--wrap-paragraph para genkou-cols)
+                    genkou--wrap-newline)))
      paragraphs
      "\n")))
+
+(defun genkou--delete-wrap-newlines (start end)
+  "START から END の間にある、genkou-wrap が挿入した印付きの改行を取り除く。
+取り除いた個数を返す。"
+  (let ((end-marker (copy-marker end))
+        (count 0))
+    (save-excursion
+      (goto-char start)
+      (let (pos)
+        (while (setq pos (text-property-any (point) end-marker
+                                            'genkou-wrap-newline t))
+          (goto-char pos)
+          (delete-char 1)
+          (setq count (1+ count)))))
+    (set-marker end-marker nil)
+    count))
 
 ;;;###autoload
 (defun genkou-wrap-region (start end)
   "リージョン内のテキストを、禁則処理つきで genkou-cols 文字ごとに改行する。
+挿入した改行には印が付き、`genkou-unwrap-region' で取り除いて元に戻せる。
+すでに wrap 済みの範囲に実行しても、先に古い改行を取り除いてから整形し直すので、
+改行が二重に残ることはない。
 （見た目上のプレビュー用。実際のPDF生成では必須ではない — genkou.py 側で
  未整形のテキストからも同じ結果が得られるため。）"
   (interactive "r")
-  (let* ((text (buffer-substring-no-properties start end))
-         (wrapped (genkou--wrap-text text)))
-    (delete-region start end)
-    (goto-char start)
-    (insert wrapped)))
+  (let ((end-marker (copy-marker end)))
+    (genkou--delete-wrap-newlines start end-marker)
+    (let* ((text (buffer-substring-no-properties start end-marker))
+           (wrapped (genkou--wrap-text text)))
+      (delete-region start end-marker)
+      (goto-char start)
+      (insert wrapped))
+    (set-marker end-marker nil)))
 
 ;;;###autoload
 (defun genkou-wrap-buffer ()
@@ -174,19 +207,17 @@ COLS 文字幅の行のリストに分割して返す。
 
 ;;;###autoload
 (defun genkou-unwrap-region (start end)
-  "リージョン内の genkou-wrap-region による改行を取り除き、
-段落区切り（空行）だけを残した状態に戻す。"
+  "リージョン内の、`genkou-wrap-region' が挿入した改行だけを取り除く。
+wrap する前の状態に戻り、原稿に元からあった改行（空行でも単独の改行でも）は
+そのまま残る。
+
+印はバッファ内だけの情報なので、wrap したテキストをファイルに保存して開き直すと
+失われ、取り除けなくなる。wrap 直後であれば undo でも戻せる。"
   (interactive "r")
-  (let* ((text (buffer-substring-no-properties start end))
-         (paragraphs (split-string text "\n\n+" nil))
-         (unwrapped (mapconcat
-                     (lambda (para)
-                       (replace-regexp-in-string "\n" "" para))
-                     paragraphs
-                     "\n\n")))
-    (delete-region start end)
-    (goto-char start)
-    (insert unwrapped)))
+  (let ((count (genkou--delete-wrap-newlines start end)))
+    (if (zerop count)
+        (user-error "genkou-wrap: 取り除ける改行がありません（C-c C-f で入れた改行は、保存して開き直すと区別できなくなります）")
+      (message "genkou-wrap: %d 個の改行を取り除きました" count))))
 
 ;;;###autoload
 (defun genkou-unwrap-buffer ()

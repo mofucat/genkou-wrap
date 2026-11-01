@@ -64,6 +64,79 @@
 (ert-deftest genkou-max-hang-matches-python-side ()
   (should (= genkou--max-hang 3)))
 
+;; --- wrap / unwrap（整形前の状態に戻る） ---
+
+(defconst genkou-test--mixed-text
+  (concat (genkou-test--a 45) "。」\n"          ; 長い段落（折り返される）
+          "単独の改行で区切った短い段落\n"       ; 単独の改行
+          "\n"                                  ; 空行
+          (genkou-test--a 21))                  ; 空行の後の段落（折り返される）
+  "空行区切りと単独の改行区切りが混在した原稿。")
+
+(defmacro genkou-test--with-text (text &rest body)
+  "TEXT を入れた一時バッファで BODY を実行する。"
+  (declare (indent 1))
+  `(with-temp-buffer
+     (let ((genkou-cols 20))
+       (insert ,text)
+       ,@body)))
+
+(ert-deftest genkou-unwrap-restores-original-exactly ()
+  "wrap → unwrap で、整形前と完全に同じ文字列に戻る（単独の改行の段落もつながらない）。"
+  (genkou-test--with-text genkou-test--mixed-text
+    (genkou-wrap-buffer)
+    (should-not (equal (buffer-string) genkou-test--mixed-text))
+    (genkou-unwrap-buffer)
+    (should (equal (buffer-substring-no-properties (point-min) (point-max))
+                   genkou-test--mixed-text))))
+
+(ert-deftest genkou-wrap-twice-then-unwrap-restores-original ()
+  "wrap を重ねても改行が二重に残らず、unwrap 一回で元に戻る。"
+  (genkou-test--with-text genkou-test--mixed-text
+    (genkou-wrap-buffer)
+    (let ((once (buffer-substring-no-properties (point-min) (point-max))))
+      (genkou-wrap-buffer)
+      (should (equal (buffer-substring-no-properties (point-min) (point-max)) once)))
+    (genkou-unwrap-buffer)
+    (should (equal (buffer-substring-no-properties (point-min) (point-max))
+                   genkou-test--mixed-text))))
+
+(ert-deftest genkou-unwrap-keeps-edits-made-after-wrap ()
+  "wrap した後に書き足した文字は、unwrap しても残る。"
+  (genkou-test--with-text (genkou-test--a 30)
+    (genkou-wrap-buffer)
+    (goto-char (point-max))
+    (insert "ＸＹ")
+    (genkou-unwrap-buffer)
+    (should (equal (buffer-substring-no-properties (point-min) (point-max))
+                   (concat (genkou-test--a 30) "ＸＹ")))))
+
+(ert-deftest genkou-unwrap-without-wrap-does-nothing ()
+  "wrap していないバッファでは何も壊さず、user-error になる。"
+  (genkou-test--with-text genkou-test--mixed-text
+    (should-error (genkou-unwrap-buffer) :type 'user-error)
+    (should (equal (buffer-substring-no-properties (point-min) (point-max))
+                   genkou-test--mixed-text))))
+
+(ert-deftest genkou-wrap-marks-only-inserted-newlines ()
+  "印が付くのは wrap が入れた改行だけで、元からあった改行には付かない。"
+  (let* ((genkou-cols 20)
+         (text (genkou--wrap-text (concat (genkou-test--a 25) "\n" (genkou-test--a 3))))
+         (first-nl (string-match "\n" text))
+         (second-nl (string-match "\n" text (1+ first-nl))))
+    (should (get-text-property first-nl 'genkou-wrap-newline text))      ; wrap が入れた改行
+    (should-not (get-text-property second-nl 'genkou-wrap-newline text)))) ; 元からの改行
+
+(ert-deftest genkou-typing-after-wrapped-newline-does-not-inherit-mark ()
+  "wrap が入れた改行の直後に入力した文字へ、印が引き継がれない（unwrap で消えない）。"
+  (genkou-test--with-text (genkou-test--a 25)
+    (genkou-wrap-buffer)
+    (goto-char (1+ (string-match "\n" (buffer-string))))   ; 改行の直後（文字位置はバッファ位置-1）
+    (insert-and-inherit "Ｚ")
+    (should-not (get-text-property (1- (point)) 'genkou-wrap-newline))
+    (genkou-unwrap-buffer)
+    (should (string-match-p "Ｚ" (buffer-string)))))
+
 ;; --- 出力先の決定 ---
 
 (defmacro genkou-test--with-output-dir (&rest body)
